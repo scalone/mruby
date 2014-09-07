@@ -1091,6 +1091,7 @@ raise_error(codegen_scope *s, const char *msg)
   genop(s, MKOP_ABx(OP_ERR, 1, idx));
 }
 
+#ifndef MRB_BIGNUM_INTEGRATION
 static double
 readint_float(codegen_scope *s, const char *p, int base)
 {
@@ -1116,6 +1117,7 @@ readint_float(codegen_scope *s, const char *p, int base)
   }
   return f;
 }
+#endif /* !MRB_BIGNUM_INTEGRATION */
 
 static mrb_int
 readint_mrb_int(codegen_scope *s, const char *p, int base, mrb_bool neg, mrb_bool *overflow)
@@ -1158,6 +1160,52 @@ readint_mrb_int(codegen_scope *s, const char *p, int base, mrb_bool neg, mrb_boo
   }
   *overflow = FALSE;
   return result;
+}
+
+static void
+read_int_literal(codegen_scope *s, node *tree, mrb_bool neg)
+{
+  char *p = (char*)tree->car;
+  int base = (intptr_t)tree->cdr->car;
+  mrb_int i;
+  mrb_code co;
+  mrb_bool overflow;
+
+  i = readint_mrb_int(s, p, base, neg, &overflow);
+  if (overflow) {
+#ifdef MRB_BIGNUM_INTEGRATION
+    int ai = mrb_gc_arena_save(s->mrb);
+    int off, sym;
+    mrb_value lit = mrb_str_new_cstr(s->mrb, p);
+    if (neg) {
+      lit = mrb_str_cat_str(s->mrb, mrb_str_new_cstr(s->mrb, "-"), lit);
+    }
+    off = new_lit(s, lit);
+    genop(s, MKOP_ABx(OP_STRING, cursp(), off));
+    push();
+    genop(s, MKOP_AsBx(OP_LOADI, cursp(), base));
+    pop();
+    sym = new_sym(s, mrb_intern_lit(s->mrb, "to_big"));
+    genop(s, MKOP_ABC(OP_SEND, cursp(), sym, 1));
+    mrb_gc_arena_restore(s->mrb, ai);
+#else
+    double f = readint_float(s, p, base);
+    int off = new_lit(s, mrb_float_value(s->mrb, neg ? -f : f));
+
+    genop(s, MKOP_ABx(OP_LOADL, cursp(), off));
+#endif
+  }
+  else {
+    if (i < MAXARG_sBx && i > -MAXARG_sBx) {
+      co = MKOP_AsBx(OP_LOADI, cursp(), i);
+    }
+    else {
+      int off = new_lit(s, mrb_fixnum_value(i));
+      co = MKOP_ABx(OP_LOADL, cursp(), off);
+    }
+    genop(s, co);
+  }
+  push();
 }
 
 static void
@@ -1982,30 +2030,7 @@ codegen(codegen_scope *s, node *tree, int val)
 
   case NODE_INT:
     if (val) {
-      char *p = (char*)tree->car;
-      int base = (intptr_t)tree->cdr->car;
-      mrb_int i;
-      mrb_code co;
-      mrb_bool overflow;
-
-      i = readint_mrb_int(s, p, base, FALSE, &overflow);
-      if (overflow) {
-        double f = readint_float(s, p, base);
-        int off = new_lit(s, mrb_float_value(s->mrb, f));
-
-        genop(s, MKOP_ABx(OP_LOADL, cursp(), off));
-      }
-      else {
-        if (i < MAXARG_sBx && i > -MAXARG_sBx) {
-          co = MKOP_AsBx(OP_LOADI, cursp(), i);
-        }
-        else {
-          int off = new_lit(s, mrb_fixnum_value(i));
-          co = MKOP_ABx(OP_LOADL, cursp(), off);
-        }
-        genop(s, co);
-      }
-      push();
+      read_int_literal(s, tree, FALSE);
     }
     break;
 
@@ -2037,32 +2062,7 @@ codegen(codegen_scope *s, node *tree, int val)
         break;
 
       case NODE_INT:
-        {
-          char *p = (char*)tree->car;
-          int base = (intptr_t)tree->cdr->car;
-          mrb_int i;
-          mrb_code co;
-          mrb_bool overflow;
-
-          i = readint_mrb_int(s, p, base, TRUE, &overflow);
-          if (overflow) {
-            double f = readint_float(s, p, base);
-            int off = new_lit(s, mrb_float_value(s->mrb, -f));
-
-            genop(s, MKOP_ABx(OP_LOADL, cursp(), off));
-          }
-          else {
-            if (i < MAXARG_sBx && i > -MAXARG_sBx) {
-              co = MKOP_AsBx(OP_LOADI, cursp(), i);
-            }
-            else {
-              int off = new_lit(s, mrb_fixnum_value(i));
-              co = MKOP_ABx(OP_LOADL, cursp(), off);
-            }
-            genop(s, co);
-          }
-          push();
-        }
+        read_int_literal(s, tree, TRUE);
         break;
 
       default:

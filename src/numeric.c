@@ -13,6 +13,7 @@
 #include "mruby/array.h"
 #include "mruby/numeric.h"
 #include "mruby/string.h"
+#include "methods.h"
 
 #ifdef MRB_USE_FLOAT
 #define floor(f) floorf(f)
@@ -1207,4 +1208,15 @@ mrb_init_numeric(mrb_state *mrb)
 #ifdef NAN
   mrb_define_const(mrb, fl, "NAN", mrb_float_value(mrb, NAN));
 #endif
+
+  /* Use the optimizations until and unless the methods are overridden */
+  mrb->numeric_methods |=
+          MRB_METHOD_FIXNUM_PLUS  |
+          MRB_METHOD_FIXNUM_MINUS |
+          MRB_METHOD_FIXNUM_TIMES |
+          MRB_METHOD_FIXNUM_DIV   |
+          MRB_METHOD_FLOAT_PLUS   |
+          MRB_METHOD_FLOAT_MINUS  |
+          MRB_METHOD_FLOAT_TIMES  |
+          MRB_METHOD_FLOAT_DIV    ;
 }
