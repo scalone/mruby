@@ -7,6 +7,20 @@
 #ifndef MRUBYCONF_H
 #define MRUBYCONF_H
 
+#ifdef VERIFONE
+  #define INFINITY HUGE_VAL
+  #define NAN (0.0/0.0)
+  #define inline __inline
+  #define NO_GETTIMEOFDAY
+  #define NO_GMTIME_R
+
+  #define isnan(x) (x != x)
+  #define isinf(x) (!isnan(x) && isnan(x-x))
+#endif
+
+/*#define isnan(x) (x != x)
+#define isinf(x) (!isnan(x) && isnan(x-x))*/
+
 /* configuration options: */
 /* add -DMRB_USE_FLOAT to use float instead of double for floating point numbers */
 //#define MRB_USE_FLOAT
