@@ -26,6 +26,9 @@
 /* represent mrb_value as a word (natural unit of data for the processor) */
 //#define MRB_WORD_BOXING
 
+/* string class to handle UTF-8 encoding */
+//#define MRB_UTF8_STRING
+
 /* argv max size in mrb_funcall */
 //#define MRB_FUNCALL_ARGC_MAX 16
 
@@ -75,23 +78,25 @@
 /* Support Bignum literals (requires a Bignum gem) */
 #define MRB_BIGNUM_INTEGRATION
 
-/* -DDISABLE_XXXX to drop following features */
-//#define DISABLE_STDIO		/* use of stdio */
+/* -DMRB_DISABLE_XXXX to drop following features */
+//#define MRB_DISABLE_STDIO	/* use of stdio */
 
-/* -DENABLE_XXXX to enable following features */
-//#define ENABLE_DEBUG		/* hooks for debugger */
+/* -DMRB_ENABLE_XXXX to enable following features */
+//#define MRB_ENABLE_DEBUG_HOOK	/* hooks for debugger */
 
 /* end of configuration */
 
-/* define ENABLE_XXXX from DISABLE_XXX */
-#ifndef DISABLE_STDIO
-#define ENABLE_STDIO
-#endif
-#ifndef ENABLE_DEBUG
-#define DISABLE_DEBUG
+/* define MRB_DISABLE_XXXX from DISABLE_XXX (for compatibility) */
+#ifdef DISABLE_STDIO
+#define MRB_DISABLE_STDIO
 #endif
 
-#ifdef ENABLE_STDIO
+/* define MRB_ENABLE_XXXX from ENABLE_XXX (for compatibility) */
+#ifdef ENABLE_DEBUG
+#define MRB_ENABLE_DEBUG_HOOK
+#endif
+
+#ifndef MRB_DISABLE_STDIO
 # include <stdio.h>
 #endif
 
@@ -101,17 +106,6 @@
 
 #ifndef TRUE
 # define TRUE 1
-#endif
-
-#if defined(MRB_BUILD_AS_DLL)
-
-#if defined(MRB_CORE) || defined(MRB_LIB)
-#define MRB_API __declspec(dllexport)
-#else
-#define MRB_API __declspec(dllimport)
-#endif
-#else
-#define MRB_API extern
 #endif
 
 #endif  /* MRUBYCONF_H */

@@ -16,10 +16,10 @@
 #include "mruby/debug.h"
 #include "mruby/error.h"
 #include "mruby/class.h"
-#include "mrb_throw.h"
+#include "mruby/throw.h"
 
 MRB_API mrb_value
-mrb_exc_new(mrb_state *mrb, struct RClass *c, const char *ptr, long len)
+mrb_exc_new(mrb_state *mrb, struct RClass *c, const char *ptr, size_t len)
 {
   mrb_value arg = mrb_str_new(mrb, ptr, len);
   return mrb_obj_new(mrb, c, 1, &arg);
@@ -152,7 +152,7 @@ exc_inspect(mrb_state *mrb, mrb_value exc)
     mrb_str_append(mrb, str, line);
     mrb_str_cat_lit(mrb, str, ": ");
     if (append_mesg) {
-      mrb_str_append(mrb, str, mesg);
+      mrb_str_cat_str(mrb, str, mesg);
       mrb_str_cat_lit(mrb, str, " (");
     }
     mrb_str_cat_cstr(mrb, str, mrb_obj_classname(mrb, exc));
@@ -165,7 +165,7 @@ exc_inspect(mrb_state *mrb, mrb_value exc)
     str = mrb_str_new_cstr(mrb, cname);
     mrb_str_cat_lit(mrb, str, ": ");
     if (append_mesg) {
-      mrb_str_append(mrb, str, mesg);
+      mrb_str_cat_str(mrb, str, mesg);
     }
     else {
       mrb_str_cat_cstr(mrb, str, cname);
@@ -206,7 +206,7 @@ MRB_API mrb_noreturn void
 mrb_exc_raise(mrb_state *mrb, mrb_value exc)
 {
   mrb->exc = mrb_obj_ptr(exc);
-  if (!mrb->out_of_memory) {
+  if (!mrb->gc.out_of_memory) {
     exc_debug_info(mrb, mrb->exc);
   }
   if (!mrb->jmp) {
@@ -309,7 +309,7 @@ mrb_name_error(mrb_state *mrb, mrb_sym id, const char *fmt, ...)
 MRB_API void
 mrb_warn(mrb_state *mrb, const char *fmt, ...)
 {
-#ifdef ENABLE_STDIO
+#ifndef MRB_DISABLE_STDIO
   va_list ap;
   mrb_value str;
 
@@ -324,7 +324,7 @@ mrb_warn(mrb_state *mrb, const char *fmt, ...)
 MRB_API mrb_noreturn void
 mrb_bug(mrb_state *mrb, const char *fmt, ...)
 {
-#ifdef ENABLE_STDIO
+#ifndef MRB_DISABLE_STDIO
   va_list ap;
   mrb_value str;
 
@@ -424,15 +424,14 @@ mrb_sys_fail(mrb_state *mrb, const char *mesg)
 }
 
 MRB_API mrb_noreturn void
-mrb_no_method_error(mrb_state *mrb, mrb_sym id, mrb_int argc, const mrb_value *argv, char const* fmt, ...)
+mrb_no_method_error(mrb_state *mrb, mrb_sym id, mrb_value args, char const* fmt, ...)
 {
   mrb_value exc;
   va_list ap;
 
   va_start(ap, fmt);
   exc = mrb_funcall(mrb, mrb_obj_value(E_NOMETHOD_ERROR), "new", 3,
-                    mrb_vformat(mrb, fmt, ap), mrb_symbol_value(id),
-                    mrb_ary_new_from_values(mrb, argc, argv));
+                    mrb_vformat(mrb, fmt, ap), mrb_symbol_value(id), args);
   va_end(ap);
   mrb_exc_raise(mrb, exc);
 }

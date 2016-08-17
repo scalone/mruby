@@ -4,7 +4,6 @@
 ** See Copyright Notice in mruby.h
 */
 
-#include <ctype.h>
 #include <string.h>
 #include <limits.h>
 #include "mruby/dump.h"
@@ -16,10 +15,8 @@
 #define FLAG_BYTEORDER_NATIVE 2
 #define FLAG_BYTEORDER_NONATIVE 0
 
-#ifdef ENABLE_STDIO
-
 #ifdef MRB_USE_FLOAT
-#define MRB_FLOAT_FMT "%.9e"
+#define MRB_FLOAT_FMT "%.8e"
 #else
 #define MRB_FLOAT_FMT "%.16e"
 #endif
@@ -178,43 +175,27 @@ write_pool_block(mrb_state *mrb, mrb_irep *irep, uint8_t *buf)
     case MRB_TT_FIXNUM:
       cur += uint8_to_bin(IREP_TT_FIXNUM, cur); /* data type */
       str = mrb_fixnum_to_str(mrb, irep->pool[pool_no], 10);
-      char_ptr = RSTRING_PTR(str);
-      {
-        mrb_int tlen;
-
-        tlen = RSTRING_LEN(str);
-        mrb_assert_int_fit(mrb_int, tlen, uint16_t, UINT16_MAX);
-        len = (uint16_t)tlen;
-      }
       break;
 
     case MRB_TT_FLOAT:
       cur += uint8_to_bin(IREP_TT_FLOAT, cur); /* data type */
       str = mrb_float_to_str(mrb, irep->pool[pool_no], MRB_FLOAT_FMT);
-      char_ptr = RSTRING_PTR(str);
-      {
-        mrb_int tlen;
-
-        tlen = RSTRING_LEN(str);
-        mrb_assert_int_fit(mrb_int, tlen, uint16_t, UINT16_MAX);
-        len = (uint16_t)tlen;
-      }
       break;
 
     case MRB_TT_STRING:
       cur += uint8_to_bin(IREP_TT_STRING, cur); /* data type */
-      char_ptr = RSTRING_PTR(irep->pool[pool_no]);
-      {
-        mrb_int tlen;
-
-        tlen = RSTRING_LEN(irep->pool[pool_no]);
-        mrb_assert_int_fit(mrb_int, tlen, uint16_t, UINT16_MAX);
-        len = (uint16_t)tlen;
-      }
+      str = irep->pool[pool_no];
       break;
 
     default:
       continue;
+    }
+
+    char_ptr = RSTRING_PTR(str);
+    {
+      mrb_int tlen = RSTRING_LEN(str);
+      mrb_assert_int_fit(mrb_int, tlen, uint16_t, UINT16_MAX);
+      len = (uint16_t)tlen;
     }
 
     cur += uint16_to_bin(len, cur); /* data length */
@@ -838,7 +819,6 @@ write_rite_binary_header(mrb_state *mrb, size_t binary_size, uint8_t *bin, uint8
   uint32_t offset;
 
   switch (flags & DUMP_ENDIAN_NAT) {
-  default:
   endian_big:
   case DUMP_ENDIAN_BIG:
     memcpy(header->binary_ident, RITE_BINARY_IDENT, sizeof(header->binary_ident));
@@ -998,12 +978,8 @@ error_exit:
     mrb_free(mrb, *bin);
     *bin = NULL;
   }
-  if (lv_syms) {
-    mrb_free(mrb, lv_syms);
-  }
-  if (filenames) {
-    mrb_free(mrb, filenames);
-  }
+  mrb_free(mrb, lv_syms);
+  mrb_free(mrb, filenames);
   return result;
 }
 
@@ -1012,6 +988,8 @@ mrb_dump_irep(mrb_state *mrb, mrb_irep *irep, uint8_t flags, uint8_t **bin, size
 {
   return dump_irep(mrb, irep, dump_flags(flags, FLAG_BYTEORDER_NONATIVE), bin, bin_size);
 }
+
+#ifndef MRB_DISABLE_STDIO
 
 int
 mrb_dump_irep_binary(mrb_state *mrb, mrb_irep *irep, uint8_t flags, FILE* fp)
@@ -1036,22 +1014,6 @@ mrb_dump_irep_binary(mrb_state *mrb, mrb_irep *irep, uint8_t flags, FILE* fp)
 }
 
 static mrb_bool
-is_valid_c_symbol_name(const char *name)
-{
-   const char *c = NULL;
-
-   if (name == NULL || name[0] == '\0') return FALSE;
-   if (!ISALPHA(name[0]) && name[0] != '_') return FALSE;
-
-   c = &name[1];
-   for (; *c != '\0'; ++c) {
-     if (!ISALNUM(*c) && *c != '_') return FALSE;
-   }
-
-   return TRUE;
-}
-
-static mrb_bool
 dump_bigendian_p(uint8_t flags)
 {
   switch (flags & DUMP_ENDIAN_NAT) {
@@ -1072,7 +1034,7 @@ mrb_dump_irep_cfunc(mrb_state *mrb, mrb_irep *irep, uint8_t flags, FILE *fp, con
   size_t bin_size = 0, bin_idx = 0;
   int result;
 
-  if (fp == NULL || initname == NULL || !is_valid_c_symbol_name(initname)) {
+  if (fp == NULL || initname == NULL || initname[0] == '\0') {
     return MRB_DUMP_INVALID_ARGUMENT;
   }
   flags = dump_flags(flags, FLAG_BYTEORDER_NATIVE);
@@ -1130,4 +1092,4 @@ mrb_dump_irep_cfunc(mrb_state *mrb, mrb_irep *irep, uint8_t flags, FILE *fp, con
   return result;
 }
 
-#endif /* ENABLE_STDIO */
+#endif /* MRB_DISABLE_STDIO */

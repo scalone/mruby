@@ -7,9 +7,14 @@
 #ifndef MRUBY_NUMERIC_H
 #define MRUBY_NUMERIC_H
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
+#include "mruby/common.h"
+
+/**
+ * Numeric class and it's sub-classes.
+ *
+ * Integer, Float and Fixnum
+ */
+MRB_BEGIN_DECL
 
 #define POSFIXABLE(f) ((f) <= MRB_INT_MAX)
 #define NEGFIXABLE(f) ((f) >= MRB_INT_MIN)
@@ -30,11 +35,48 @@ mrb_value mrb_num_div(mrb_state *mrb, mrb_value x, mrb_value y);
 #define MRB_UINT_MAKE(n) MRB_UINT_MAKE2(n)
 #define mrb_uint MRB_UINT_MAKE(MRB_INT_BIT)
 
-#ifdef MRB_WORD_BOXING
-# define MRB_INT_OVERFLOW_MASK ((mrb_uint)1 << (MRB_INT_BIT - 1 - MRB_FIXNUM_SHIFT))
+#define MRB_INT_OVERFLOW_MASK ((mrb_uint)1 << (MRB_INT_BIT - 1 - MRB_FIXNUM_SHIFT))
+
+/* Idea from Potion: https://github.com/perl11/potion (MIT) */
+#if (defined(__clang__) && ((__clang_major__ > 3) || (__clang_major__ == 3 && __clang_minor__ >= 4))) \
+    || (defined(__GNUC__) && __GNUC__ >= 5)
+
+static inline mrb_bool
+mrb_int_add_overflow(mrb_int augend, mrb_int addend, mrb_int *sum)
+{
+  mrb_bool of;
+
+#ifdef MRB_INT64
+  long long val;
+  of = __builtin_saddll_overflow(augend, addend, &val) ||
 #else
-# define MRB_INT_OVERFLOW_MASK ((mrb_uint)1 << (MRB_INT_BIT - 1))
+  int val;
+  of = __builtin_sadd_overflow(augend, addend, &val) ||
 #endif
+  (val > MRB_INT_MAX) || (val < MRB_INT_MIN);
+
+  *sum = (mrb_int) val;
+  return of;
+}
+
+static inline mrb_bool
+mrb_int_sub_overflow(mrb_int minuend, mrb_int subtrahend, mrb_int *difference)
+{
+  mrb_bool of;
+
+#ifdef MRB_INT64
+  long long val;
+  of = __builtin_ssubll_overflow(minuend, subtrahend, &val) ||
+#else
+  int val;
+  of = __builtin_ssub_overflow(minuend, subtrahend, &val) ||
+#endif
+  (val > MRB_INT_MAX) || (val < MRB_INT_MIN);
+
+  *difference = (mrb_int) val;
+  return of;
+}
+#else
 
 static inline mrb_bool
 mrb_int_add_overflow(mrb_int augend, mrb_int addend, mrb_int *sum)
@@ -56,13 +98,13 @@ mrb_int_sub_overflow(mrb_int minuend, mrb_int subtrahend, mrb_int *difference)
   return !!(((x ^ z) & (~y ^ z)) & MRB_INT_OVERFLOW_MASK);
 }
 
+#endif
+
 #undef MRB_INT_OVERFLOW_MASK
 #undef mrb_uint
 #undef MRB_UINT_MAKE
 #undef MRB_UINT_MAKE2
 
-#if defined(__cplusplus)
-}  /* extern "C" { */
-#endif
+MRB_END_DECL
 
 #endif  /* MRUBY_NUMERIC_H */
